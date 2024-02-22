@@ -18,6 +18,6 @@ const serverSchema = new mongoose.Schema({
   ],
 });
 
-const Server = mongoose.model('Server', serverSchema);
+export const Server = mongoose.model('Server', serverSchema);
 
-module.exports = { Server };
+export default Server;
