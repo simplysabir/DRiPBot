@@ -1,12 +1,11 @@
 import { Client, GatewayIntentBits } from "discord.js";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
-import Server from "../model/model.js"; // Ensure the path matches your project structure
-import { fetchSolanaAssets } from "../utils/fetchSolanaAssets.js"; // Placeholder path
+import Server from "../model/model.js";
+import { fetchSolanaAssets } from "../utils/fetchSolanaAssets.js";
 import cron from "node-cron";
 dotenv.config();
 
-// MongoDB connection
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB connected"))
@@ -23,17 +22,18 @@ const client = new Client({
 
 client.on("ready", () => {
   console.log(`Logged in as ${client.user.tag}!`);
-  // Set up cron job for periodic eligibility checks
-  // Inside the client.on("ready") event, after the bot logs in
   cron.schedule("0 0 * * SUN", async () => {
     console.log("Performing weekly eligibility checks...");
     const servers = await Server.find(); // Fetch all servers
 
     for (const server of servers) {
-      const { serverId, eligibilityCriteria } = server;
+      const { serverId, eligibilityCriteria, creatorAddress } = server;
 
       for (const user of server.users) {
-        const assets = await fetchSolanaAssets(user.walletAddress); // Implement this
+        const assets = await fetchSolanaAssets(
+          user.walletAddress,
+          creatorAddress
+        );
         const isEligible = checkEligibility(assets, eligibilityCriteria);
 
         // Update the user's eligibility in the database
@@ -79,33 +79,53 @@ client.on("interactionCreate", async (interaction) => {
   if (commandName === "ping") {
     await interaction.reply("Pong!");
   } else if (commandName === "setcreator") {
-    const address = interaction.options.getString("address");
-    await Server.findOneAndUpdate(
-      { serverId: interaction.guildId },
-      { creatorAddress: address },
-      { upsert: true }
-    );
-    await interaction.reply("Creator address set.");
+    if (!interaction.member.permissions.has("ADMINISTRATOR")) {
+      const address = interaction.options.getString("address");
+      await Server.findOneAndUpdate(
+        { serverId: interaction.guildId },
+        { creatorAddress: address },
+        { upsert: true }
+      );
+      await interaction.reply("Creator address set.");
+    } else {
+      await interaction.reply(
+        "You do not have permission to use this command."
+      );
+    }
   } else if (commandName === "setcriteria") {
-    const criteria = {
-      common: interaction.options.getInteger("common"),
-      legendary: interaction.options.getInteger("legendary"),
-      rare: interaction.options.getInteger("rare"),
-      minimumNFTs: interaction.options.getInteger("minimumnfts"),
-    };
-    await Server.findOneAndUpdate(
-      { serverId: interaction.guildId },
-      { eligibilityCriteria: criteria },
-      { upsert: true }
-    );
-    await interaction.reply("Eligibility criteria updated.");
+    if (!interaction.member.permissions.has("ADMINISTRATOR")) {
+      const criteria = {
+        common: interaction.options.getInteger("common"),
+        legendary: interaction.options.getInteger("legendary"),
+        rare: interaction.options.getInteger("rare"),
+        minimumNFTs: interaction.options.getInteger("minimumnfts"),
+      };
+      await Server.findOneAndUpdate(
+        { serverId: interaction.guildId },
+        { eligibilityCriteria: criteria },
+        { upsert: true }
+      );
+      await interaction.reply("Eligibility criteria updated.");
+    } else {
+      await interaction.reply(
+        "You do not have permission to use this command."
+      );
+    }
   } else if (commandName === "register") {
     const walletAddress = interaction.options.getString("wallet");
-    // This is a simplified placeholder. Implement fetching and checking Solana assets.
-    const assets = await fetchSolanaAssets(walletAddress); // Ensure this function is implemented
-    // Simplified eligibility check. Replace with your actual logic.
-    const isEligible = true; // Replace with actual check against `assets` and stored `eligibilityCriteria`
-    await Server.findOneAndUpdate(
+    const server = await Server.findOne({ serverId: interaction.guildId });
+    if (!server) {
+      await interaction.reply(
+        "Server settings not found. Please set up the server first."
+      );
+      return;
+    }
+    const assets = await fetchSolanaAssets(
+      walletAddress,
+      server.creatorAddress
+    );
+    const isEligible = checkEligibility(assets, server.eligibilityCriteria);
+    await Server.updateOne(
       { serverId: interaction.guildId },
       {
         $push: {

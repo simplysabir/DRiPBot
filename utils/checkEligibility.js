@@ -1,4 +1,3 @@
-// eligibilityUtils.js
 export function checkEligibility(assets, eligibilityCriteria) {
     const counts = { common: 0, legendary: 0, rare: 0 };
 
