@@ -7,6 +7,7 @@ const serverSchema = new mongoose.Schema({
     common: Number,
     legendary: Number,
     rare: Number,
+    ultimate: Number,
     minimumNFTs: Number,
   },
   users: [

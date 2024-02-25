@@ -79,7 +79,7 @@ client.on("interactionCreate", async (interaction) => {
   if (commandName === "ping") {
     await interaction.reply("Pong!");
   } else if (commandName === "setcreator") {
-    if (!interaction.member.permissions.has("ADMINISTRATOR")) {
+    if (interaction.member.permissions.has("ADMINISTRATOR")) {
       const address = interaction.options.getString("address");
       await Server.findOneAndUpdate(
         { serverId: interaction.guildId },
@@ -93,13 +93,13 @@ client.on("interactionCreate", async (interaction) => {
       );
     }
   } else if (commandName === "setcriteria") {
-    if (!interaction.member.permissions.has("ADMINISTRATOR")) {
-      const criteria = {
-        common: interaction.options.getInteger("common"),
-        legendary: interaction.options.getInteger("legendary"),
-        rare: interaction.options.getInteger("rare"),
-        minimumNFTs: interaction.options.getInteger("minimumnfts"),
-      };
+    if (interaction.member.permissions.has("ADMINISTRATOR")) {
+      const common = interaction.options.getInteger("common") || 0;
+      const legendary = interaction.options.getInteger("legendary") || 0;
+      const rare = interaction.options.getInteger("rare") || 0;
+      const ultimate = interaction.options.getInteger("ultimate") || 0;
+      const minimumNFTs = interaction.options.getInteger("minimumnfts") || 0;
+      const criteria = { common, legendary, rare, ultimate, minimumNFTs };
       await Server.findOneAndUpdate(
         { serverId: interaction.guildId },
         { eligibilityCriteria: criteria },
