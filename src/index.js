@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import mongoose from "mongoose";
 import Server from "../model/model.js";
 import { fetchSolanaAssets } from "../utils/fetchSolanaAssets.js";
+import { checkEligibility } from "../utils/checkEligibility.js";
 import cron from "node-cron";
 dotenv.config();
 
@@ -24,7 +25,7 @@ client.on("ready", () => {
   console.log(`Logged in as ${client.user.tag}!`);
   cron.schedule("0 0 * * SUN", async () => {
     console.log("Performing weekly eligibility checks...");
-    const servers = await Server.find(); // Fetch all servers
+    const servers = await Server.find();
 
     for (const server of servers) {
       const { serverId, eligibilityCriteria, creatorAddress } = server;
@@ -36,26 +37,22 @@ client.on("ready", () => {
         );
         const isEligible = checkEligibility(assets, eligibilityCriteria);
 
-        // Update the user's eligibility in the database
         await Server.updateOne(
           { serverId: serverId, "users.discordId": user.discordId },
           { $set: { "users.$.isEligible": isEligible } }
         );
 
-        // Optional: Notify the user or take actions based on eligibility
         const guild = client.guilds.cache.get(serverId);
-        if (!guild) continue; // Skip if the guild is not found
+        if (!guild) continue;
 
         try {
           const member = await guild.members.fetch(user.discordId);
           if (!isEligible && member) {
-            // Send a warning message before kicking, optional
             await member
               .send(
                 "You have been removed from the server due to not meeting the NFT eligibility criteria."
               )
               .catch(console.error);
-            // Kick the member
             await member
               .kick("Not meeting the NFT eligibility criteria")
               .catch(console.error);
@@ -80,7 +77,7 @@ client.on("interactionCreate", async (interaction) => {
     await interaction.reply("Pong!");
   } else if (commandName === "setcreator") {
     if (interaction.member.permissions.has("ADMINISTRATOR")) {
-      const address = interaction.options.getString("address");
+      const address = interaction.options.getString("wallet_address");
       await Server.findOneAndUpdate(
         { serverId: interaction.guildId },
         { creatorAddress: address },
@@ -112,33 +109,55 @@ client.on("interactionCreate", async (interaction) => {
       );
     }
   } else if (commandName === "register") {
-    const walletAddress = interaction.options.getString("wallet");
+    await interaction.deferReply();
+    const walletAddress = interaction.options.getString("wallet_address");
     const server = await Server.findOne({ serverId: interaction.guildId });
+
     if (!server) {
-      await interaction.reply(
+      await interaction.editReply(
         "Server settings not found. Please set up the server first."
       );
       return;
     }
-    const assets = await fetchSolanaAssets(
-      walletAddress,
-      server.creatorAddress
+
+    const isAlreadyRegistered = server.users.some(
+      (user) => user.walletAddress === walletAddress
     );
-    const isEligible = checkEligibility(assets, server.eligibilityCriteria);
-    await Server.updateOne(
-      { serverId: interaction.guildId },
-      {
-        $push: {
-          users: { discordId: interaction.user.id, walletAddress, isEligible },
+    if (isAlreadyRegistered) {
+      await interaction.editReply("This wallet address is already registered.");
+      return;
+    }
+
+    try {
+      const assets = await fetchSolanaAssets(
+        walletAddress,
+        server.creatorAddress
+      );
+      const isEligible = checkEligibility(assets, server.eligibilityCriteria);
+      await Server.updateOne(
+        { serverId: interaction.guildId },
+        {
+          $push: {
+            users: {
+              discordId: interaction.user.id,
+              walletAddress,
+              isEligible,
+            },
+          },
         },
-      },
-      { upsert: true }
-    );
-    await interaction.reply(
-      isEligible
-        ? "Wallet registered and you are eligible."
-        : "Wallet registered but you are not eligible."
-    );
+        { upsert: true }
+      );
+      await interaction.editReply(
+        isEligible
+          ? "Wallet registered and you are eligible."
+          : "Wallet registered but you are not eligible."
+      );
+    } catch (error) {
+      console.error("Registration error:", error);
+      await interaction.editReply(
+        "Failed to process your registration. Please try again later."
+      );
+    }
   }
 });
 
