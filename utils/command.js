@@ -4,10 +4,6 @@ dotenv.config();
 
 const commands = [
   {
-    name: 'ping',
-    description: 'Replies with Pong!',
-  },
-  {
     name: 'setcreator',
     description: 'Sets the Solana creator address for the server.',
     defaultPermission: false,

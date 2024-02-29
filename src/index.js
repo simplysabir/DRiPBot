@@ -73,9 +73,7 @@ client.on("interactionCreate", async (interaction) => {
 
   const { commandName } = interaction;
 
-  if (commandName === "ping") {
-    await interaction.reply("Pong!");
-  } else if (commandName === "setcreator") {
+  if (commandName === "setcreator") {
     if (interaction.member.permissions.has("ADMINISTRATOR")) {
       const address = interaction.options.getString("wallet_address");
       await Server.findOneAndUpdate(
@@ -123,6 +121,13 @@ client.on("interactionCreate", async (interaction) => {
     const isAlreadyRegistered = server.users.some(
       (user) => user.walletAddress === walletAddress
     );
+    const userAlreadyRegistered = server.users.some(
+      (user) => user.discordId === interaction.user.id
+    );
+    if (userAlreadyRegistered) {
+      await interaction.editReply("You are already registered.");
+      return;
+    }
     if (isAlreadyRegistered) {
       await interaction.editReply("This wallet address is already registered.");
       return;
