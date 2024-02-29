@@ -5,7 +5,6 @@ import Server from "../model/model.js";
 import { fetchSolanaAssets } from "../utils/fetchSolanaAssets.js";
 import { checkEligibility } from "../utils/checkEligibility.js";
 import cron from "node-cron";
-import '../utils/keep-alive.js';
 
 dotenv.config();
 
